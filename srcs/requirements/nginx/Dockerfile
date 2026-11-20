@@ -4,7 +4,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         nginx openssl gettext-base \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -f /etc/nginx/sites-enabled/default
+    && rm -f /etc/nginx/sites-enabled/default \
+    && rm -f /var/www/html/index.nginx-debian.html
 
 COPY conf/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 COPY tools/setup.sh /usr/local/bin/setup.sh

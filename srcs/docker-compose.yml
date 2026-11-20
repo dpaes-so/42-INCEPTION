@@ -4,6 +4,7 @@ services:
   mariadb:
     build: ./requirements/mariadb
     image: mariadb:inception
+    container_name: mariadb
     restart: unless-stopped
     environment:
       DB_NAME: ${DB_NAME:?Set DB_NAME in .env}
@@ -19,6 +20,7 @@ services:
   wordpress:
     build: ./requirements/wordpress
     image: wordpress:inception
+    container_name: wordpress
     restart: unless-stopped
     depends_on:
       - mariadb
@@ -44,6 +46,7 @@ services:
   nginx:
     build: ./requirements/nginx
     image: nginx:inception
+    container_name: nginx
     restart: unless-stopped
     depends_on:
       - wordpress
@@ -56,9 +59,21 @@ services:
     networks:
       - inception
 
+# Named volumes whose data lives in /home/dpaes-so/data on the host.
+# The folders must exist before `up`; the Makefile creates them.
 volumes:
   mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/dpaes-so/data/mariadb
   wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/dpaes-so/data/wordpress
 
 networks:
   inception:

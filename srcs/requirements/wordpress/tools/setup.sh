@@ -53,20 +53,28 @@ if [ ! -f wp-config.php ]; then
         umask 077
         wp config create --dbname="$DB_NAME" --dbuser="$DB_USER" \
             --dbhost=mariadb:3306 --dbcharset=utf8mb4 \
-            --prompt=dbpass --allow-root < /run/secrets/db_password
+            --prompt=dbpass --quiet --allow-root < /run/secrets/db_password
     )
+    echo "Created wp-config.php."
 fi
 
-if ! wp core is-installed --allow-root; then
+# --quiet matters below: with --prompt, wp-cli otherwise prints the full
+# command, password included, to stdout (and so into `docker logs`).
+if ! wp core is-installed --url="https://$DOMAIN_NAME" --allow-root; then
     wp core install --url="https://$DOMAIN_NAME" --title="$WP_TITLE" \
         --admin_user="$WP_ADMIN_USER" --admin_email="$WP_ADMIN_EMAIL" \
-        --prompt=admin_password --skip-email --allow-root \
+        --prompt=admin_password --skip-email --quiet --allow-root \
         < /run/secrets/wp_admin_password
+    # By default WordPress holds a user's first comment for moderation;
+    # publish comments right away so the second user can comment.
+    wp option update comment_previously_approved 0 --quiet --allow-root
+    echo "Installed WordPress with administrator $WP_ADMIN_USER."
 fi
 
 if ! wp user get "$WP_USER" --field=ID --allow-root >/dev/null 2>&1; then
     wp user create "$WP_USER" "$WP_USER_EMAIL" --role=subscriber \
-        --prompt=user_pass --allow-root < /run/secrets/wp_user_password
+        --prompt=user_pass --quiet --allow-root < /run/secrets/wp_user_password
+    echo "Created user $WP_USER."
 fi
 
 chown -R www-data:www-data /var/www/html
