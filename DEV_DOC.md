@@ -93,10 +93,11 @@ docker compose -f srcs/docker-compose.yml up --build -d
 
 On first start (the healthchecks in `docker-compose.yml` keep this order):
 
-1. **mariadb** initialises `/var/lib/mysql` with `mariadb-install-db`, creates the
-   database and user with `mariadbd --bootstrap`, sets the root password,
-   writes the `.inception_initialized` marker, then `exec`s `mariadbd`. It
-   becomes healthy when `mariadb-admin ping` answers.
+1. **mariadb** initialises `/var/lib/mysql` with `mariadb-install-db`, starts a
+   temporary server without network, creates the database and user and sets
+   the root password, stops the temporary server, writes the
+   `.inception_initialized` marker, then `exec`s `mariadbd`. It becomes
+   healthy when `mariadb-admin ping` answers.
 2. **wordpress** starts once mariadb is healthy (its script still waits up to
    60 s for a database connection, as a safety net), then uses WP-CLI to download
    WordPress, create `wp-config.php`, install the site (admin user) and create the

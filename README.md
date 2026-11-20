@@ -66,8 +66,9 @@ all data) and `make re` (`fclean` + `make`).
 - **First-run markers:** MariaDB is only set up when its data folder has no
   setup marker, and WordPress only downloads, configures and installs itself
   when it is not done yet. Restarting or rebuilding keeps the existing data.
-- **MariaDB bootstrap:** the database and users are created with
-  `mariadbd --bootstrap`, so no temporary server runs in the background.
+- **MariaDB first start:** a temporary server (socket only, no network) creates
+  the database and users, then the script stops it, waits for it to exit
+  (`wait`) and `exec`s the real server, which becomes PID 1.
 - **Start order with healthchecks:** WordPress only starts when MariaDB answers
   (`mariadb-admin ping`), and NGINX only when WordPress has finished its setup
   and PHP-FPM runs (`depends_on` with `condition: service_healthy`).
@@ -131,7 +132,7 @@ volumes use the `local` driver with `driver_opts` (`type: none`, `o: bind`,
   `ngx_http_fastcgi_module`
 - [WP-CLI commands](https://developer.wordpress.org/cli/commands/)
 - [MariaDB documentation](https://mariadb.com/kb/en/documentation/):
-  `mariadb-install-db`, `mariadbd --bootstrap`, user management
+  `mariadb-install-db`, `mariadb-admin`, user management
 - [PHP-FPM configuration](https://www.php.net/manual/en/install.fpm.configuration.php)
 
 ### AI usage
