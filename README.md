@@ -58,7 +58,7 @@ all data) and `make re` (`fclean` + `make`).
 - **`srcs/docker-compose.yml`** builds the three images (each named after its
   service: `nginx`, `wordpress`, `mariadb`), passes `srcs/.env` to them with
   `env_file`, connects them on one bridge network, mounts the volumes and
-  secrets, and restarts containers on a crash (`restart: unless-stopped`).
+  secrets, and restarts containers on a crash (`restart: on-failure`).
 - **The Makefile** creates the data folders and runs Docker Compose.
 
 ### Main design choices
@@ -68,14 +68,16 @@ all data) and `make re` (`fclean` + `make`).
   when it is not done yet. Restarting or rebuilding keeps the existing data.
 - **MariaDB bootstrap:** the database and users are created with
   `mariadbd --bootstrap`, so no temporary server runs in the background.
-- **Passwords never reach the logs or the image:** they are read from
-  `/run/secrets/*` and passed to WP-CLI on stdin (`--prompt`) with `--quiet`,
-  which stops WP-CLI from printing the command with the password.
+- **Start order with healthchecks:** WordPress only starts when MariaDB answers
+  (`mariadb-admin ping`), and NGINX only when WordPress has finished its setup
+  and PHP-FPM runs (`depends_on` with `condition: service_healthy`).
+- **Passwords stay out of the image and `.env`:** the scripts read them from
+  `/run/secrets/*` at start-up.
 - **Minimal attack surface:** only NGINX publishes a port (443). PHP-FPM (9000)
-  and MariaDB (3306) are only reachable on the internal network. NGINX mounts
-  the website volume read-only and blocks `wp-config.php` and dotfiles.
-- **The administrator** username cannot contain "admin" (the WordPress script
-  refuses to start otherwise). The second user is a subscriber who can comment.
+  and MariaDB (3306) are only reachable on the internal network.
+- **Users:** the administrator username (`WP_ADMIN_USER`) does not contain
+  "admin", as the subject requires. The second user is a subscriber who can
+  comment.
 
 ### Virtual Machines vs Docker
 

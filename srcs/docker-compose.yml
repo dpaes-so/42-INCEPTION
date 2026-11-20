@@ -16,7 +16,13 @@ services:
       - mariadb_data:/var/lib/mysql
     networks:
       - inception
-    restart: unless-stopped
+    restart: on-failure
+    # Healthy once the server answers (exit code 0 even without credentials).
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "--silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   wordpress:
     build:
@@ -35,8 +41,15 @@ services:
     networks:
       - inception
     depends_on:
-      - mariadb
-    restart: unless-stopped
+      mariadb:
+        condition: service_healthy
+    restart: on-failure
+    # Healthy once setup.sh has finished and exec'd PHP-FPM as PID 1.
+    healthcheck:
+      test: ["CMD", "grep", "-q", "php-fpm", "/proc/1/cmdline"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
 
   nginx:
     build:
@@ -49,12 +62,13 @@ services:
     ports:
       - "443:443"
     volumes:
-      - wordpress_data:/var/www/html:ro
+      - wordpress_data:/var/www/html
     networks:
       - inception
     depends_on:
-      - wordpress
-    restart: unless-stopped
+      wordpress:
+        condition: service_healthy
+    restart: on-failure
 
 networks:
   inception:

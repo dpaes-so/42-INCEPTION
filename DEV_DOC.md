@@ -14,7 +14,7 @@ How to set up, build and manage the Inception stack. For everyday use, see
     ├── docker-compose.yml    # services, network, named volumes, secrets
     └── requirements/
         ├── mariadb/          # Dockerfile, conf/99-inception.cnf, tools/setup.sh
-        ├── nginx/            # Dockerfile, conf/nginx.conf.template, tools/setup.sh
+        ├── nginx/            # Dockerfile, conf/nginx.conf (site config), tools/setup.sh
         └── wordpress/        # Dockerfile, conf/www.conf (PHP-FPM pool), tools/setup.sh
 ```
 
@@ -57,8 +57,9 @@ the containers with `env_file`. No password goes in `.env`.
 
 ### Secrets: `secrets/*.txt`
 
-Four files, one password each. MariaDB only accepts hexadecimal passwords,
-so generate them with `openssl`:
+Four files, one password each. The two database passwords must not contain
+`'` or `\`: they go between quotes in the SQL that creates the users. An easy
+way to generate them:
 
 ```bash
 mkdir -p secrets
@@ -90,16 +91,22 @@ Under the hood, the Makefile runs:
 docker compose -f srcs/docker-compose.yml up --build -d
 ```
 
-On first start:
+On first start (the healthchecks in `docker-compose.yml` keep this order):
 
 1. **mariadb** initialises `/var/lib/mysql` with `mariadb-install-db`, creates the
    database and user with `mariadbd --bootstrap`, sets the root password,
-   writes the `.inception_initialized` marker, then `exec`s `mariadbd`.
-2. **wordpress** waits up to 60 s for MariaDB, then uses WP-CLI to download
+   writes the `.inception_initialized` marker, then `exec`s `mariadbd`. It
+   becomes healthy when `mariadb-admin ping` answers.
+2. **wordpress** starts once mariadb is healthy (its script still waits up to
+   60 s for a database connection, as a safety net), then uses WP-CLI to download
    WordPress, create `wp-config.php`, install the site (admin user) and create the
-   second user. Then it `exec`s `php-fpm8.2 -F`.
-3. **nginx** creates a self-signed certificate for `DOMAIN_NAME`, renders its
-   config from the template, then `exec`s `nginx -g "daemon off;"`.
+   second user. Then it `exec`s `php-fpm8.2 -F`, and becomes healthy once
+   PHP-FPM is PID 1.
+3. **nginx** starts once wordpress is healthy. It creates a new self-signed
+   certificate for `DOMAIN_NAME`, then `exec`s `nginx -g "daemon off;"`. Its
+   site config (`conf/nginx.conf`, copied over Debian's default site) has the
+   domain written in `server_name`; change it there too if you change
+   `DOMAIN_NAME`.
 
 On later starts each script sees the existing data and goes straight to the
 daemon.
@@ -134,7 +141,7 @@ docker volume inspect inception_mariadb_data   # Options.device = /home/$USER/da
 | Volume                     | Mounted at                    | Data on the host               |
 |----------------------------|-------------------------------|--------------------------------|
 | `inception_mariadb_data`   | `/var/lib/mysql` (mariadb)    | `/home/$USER/data/mariadb`  |
-| `inception_wordpress_data` | `/var/www/html` (wordpress; read-only in nginx) | `/home/$USER/data/wordpress` |
+| `inception_wordpress_data` | `/var/www/html` (wordpress and nginx) | `/home/$USER/data/wordpress` |
 
 Both are named volumes using the `local` driver with
 `type: none, o: bind, device: /home/${USER}/data/...`. Docker Compose takes
@@ -142,8 +149,8 @@ Both are named volumes using the `local` driver with
 `make` as yourself, not with `sudo` (which would make it `/home/root/data`). Removing the
 containers, the images, or even the volumes (`docker volume rm`) leaves the
 files in `/home/$USER/data`. The next `make` finds the setup markers
-there and reuses the existing database and site. After a VM reboot, the
-containers start again with the Docker service (`restart: unless-stopped`),
-or with `make`.
+there and reuses the existing database and site. After a VM reboot, run
+`make` again. (`restart: on-failure` restarts a container that crashes, not
+one that Docker stopped cleanly at shutdown.)
 
 To start over with an empty site: `make fclean && make`.
