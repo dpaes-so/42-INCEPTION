@@ -4,7 +4,6 @@ set -eu
 : "${DB_NAME:?DB_NAME is missing}"
 : "${DB_USER:?DB_USER is missing}"
 : "${DOMAIN_NAME:?DOMAIN_NAME is missing}"
-: "${WP_VERSION:?WP_VERSION is missing}"
 : "${WP_TITLE:?WP_TITLE is missing}"
 : "${WP_ADMIN_USER:?WP_ADMIN_USER is missing}"
 : "${WP_ADMIN_EMAIL:?WP_ADMIN_EMAIL is missing}"
@@ -44,7 +43,7 @@ fi
 unset DB_PASSWORD
 
 if [ ! -f .core_downloaded ]; then
-    wp core download --version="$WP_VERSION" --force --allow-root
+    wp core download --force --allow-root
     touch .core_downloaded
 fi
 

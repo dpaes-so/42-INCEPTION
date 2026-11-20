@@ -2,13 +2,13 @@ name: inception
 
 services:
   mariadb:
-    build: ./requirements/mariadb
-    image: mariadb:inception
+    build:
+      context: ./requirements/mariadb
+      dockerfile: Dockerfile
+    image: mariadb
     container_name: mariadb
-    restart: unless-stopped
-    environment:
-      DB_NAME: ${DB_NAME:?Set DB_NAME in .env}
-      DB_USER: ${DB_USER:?Set DB_USER in .env}
+    env_file:
+      - .env
     secrets:
       - db_password
       - db_root_password
@@ -16,24 +16,16 @@ services:
       - mariadb_data:/var/lib/mysql
     networks:
       - inception
+    restart: unless-stopped
 
   wordpress:
-    build: ./requirements/wordpress
-    image: wordpress:inception
+    build:
+      context: ./requirements/wordpress
+      dockerfile: Dockerfile
+    image: wordpress
     container_name: wordpress
-    restart: unless-stopped
-    depends_on:
-      - mariadb
-    environment:
-      DB_NAME: ${DB_NAME:?Set DB_NAME in .env}
-      DB_USER: ${DB_USER:?Set DB_USER in .env}
-      DOMAIN_NAME: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env}
-      WP_VERSION: ${WP_VERSION:?Set WP_VERSION in .env}
-      WP_TITLE: ${WP_TITLE:?Set WP_TITLE in .env}
-      WP_ADMIN_USER: ${WP_ADMIN_USER:?Set WP_ADMIN_USER in .env}
-      WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL:?Set WP_ADMIN_EMAIL in .env}
-      WP_USER: ${WP_USER:?Set WP_USER in .env}
-      WP_USER_EMAIL: ${WP_USER_EMAIL:?Set WP_USER_EMAIL in .env}
+    env_file:
+      - .env
     secrets:
       - db_password
       - wp_admin_password
@@ -42,42 +34,47 @@ services:
       - wordpress_data:/var/www/html
     networks:
       - inception
+    depends_on:
+      - mariadb
+    restart: unless-stopped
 
   nginx:
-    build: ./requirements/nginx
-    image: nginx:inception
+    build:
+      context: ./requirements/nginx
+      dockerfile: Dockerfile
+    image: nginx
     container_name: nginx
-    restart: unless-stopped
-    depends_on:
-      - wordpress
-    environment:
-      DOMAIN_NAME: ${DOMAIN_NAME:?Set DOMAIN_NAME in .env}
+    env_file:
+      - .env
     ports:
       - "443:443"
     volumes:
       - wordpress_data:/var/www/html:ro
     networks:
       - inception
+    depends_on:
+      - wordpress
+    restart: unless-stopped
 
-# Named volumes whose data lives in /home/dpaes-so/data on the host.
-# The folders must exist before `up`; the Makefile creates them.
+networks:
+  inception:
+    driver: bridge
+
+# Named volumes whose data lives in /home/<user>/data on the host
+# (${USER} comes from the shell). The Makefile creates the folders.
 volumes:
   mariadb_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/dpaes-so/data/mariadb
+      device: /home/${USER}/data/mariadb
   wordpress_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/dpaes-so/data/wordpress
-
-networks:
-  inception:
-    driver: bridge
+      device: /home/${USER}/data/wordpress
 
 secrets:
   db_password:

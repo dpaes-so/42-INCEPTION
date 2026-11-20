@@ -40,8 +40,8 @@ make
 ```
 
 Then open `https://dpaes-so.42.fr` and accept the self-signed certificate.
-Other targets: `make down`, `make stop`, `make restart`, `make logs`,
-`make ps`, `make re`, and `make fclean` (also deletes all data).
+Other targets: `make down` (stop, keep the data), `make fclean` (also deletes
+all data) and `make re` (`fclean` + `make`).
 [USER_DOC.md](USER_DOC.md) explains day-to-day use.
 
 ## Project description
@@ -55,12 +55,11 @@ Other targets: `make down`, `make stop`, `make restart`, `make logs`,
   `exec` the real daemon (`nginx`, `php-fpm8.2 -F`, `mariadbd`). The daemon
   becomes PID 1 and runs in the foreground, so Docker can see when it crashes
   and stop it cleanly. No `tail -f`, `sleep infinity` or background jobs.
-- **`srcs/docker-compose.yml`** builds the three images (named after their
-  service and tagged `inception`, never `latest`), connects them on one bridge
-  network, mounts the volumes and secrets, and restarts containers on a crash
-  (`restart: unless-stopped`).
-- **The Makefile** checks that the local configuration exists, creates the data
-  folders and runs Docker Compose.
+- **`srcs/docker-compose.yml`** builds the three images (each named after its
+  service: `nginx`, `wordpress`, `mariadb`), passes `srcs/.env` to them with
+  `env_file`, connects them on one bridge network, mounts the volumes and
+  secrets, and restarts containers on a crash (`restart: unless-stopped`).
+- **The Makefile** creates the data folders and runs Docker Compose.
 
 ### Main design choices
 
@@ -115,7 +114,7 @@ by Docker (`docker volume ls/inspect/rm`), has a name independent of the host
 layout, and is filled from the image the first time it is used. The subject
 asks for named volumes whose data sits in `/home/dpaes-so/data`, so both
 volumes use the `local` driver with `driver_opts` (`type: none`, `o: bind`,
-`device: /home/dpaes-so/data/...`). They are still named volumes, and
+`device: /home/${USER}/data/...`, which is `/home/dpaes-so/data` on the VM). They are still named volumes, and
 `docker volume inspect` shows where the data lives.
 
 ## Resources

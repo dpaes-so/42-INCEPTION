@@ -7,7 +7,7 @@ How to set up, build and manage the Inception stack. For everyday use, see
 
 ```
 .
-├── Makefile                  # entry point: checks config, creates data dirs, runs compose
+├── Makefile                  # entry point: creates the data dirs, runs docker compose
 ├── secrets/                  # password files (ignored by git, you create them)
 └── srcs/
     ├── .env.example          # template for srcs/.env (copy it, ignored by git)
@@ -46,14 +46,14 @@ cp srcs/.env.example srcs/.env
 | `DOMAIN_NAME`    | Site domain, `dpaes-so.42.fr`                                |
 | `DB_NAME`        | WordPress database name (letters, digits, `_`)               |
 | `DB_USER`        | MariaDB user for WordPress (letters, digits, `_`)            |
-| `WP_VERSION`     | WordPress version that WP-CLI downloads                      |
 | `WP_TITLE`       | Site title                                                   |
 | `WP_ADMIN_USER`  | Administrator username; must not contain "admin"             |
 | `WP_ADMIN_EMAIL` | Administrator email                                          |
 | `WP_USER`        | Second user (subscriber)                                     |
 | `WP_USER_EMAIL`  | Second user's email                                          |
 
-No password goes in `.env`.
+Docker Compose reads `srcs/.env` (next to `docker-compose.yml`) and passes it to
+the containers with `env_file`. No password goes in `.env`.
 
 ### Secrets: `secrets/*.txt`
 
@@ -75,19 +75,19 @@ chmod 600 secrets/*.txt
 | `wp_admin_password.txt` | wordpress           | `/run/secrets/wp_admin_password`   |
 | `wp_user_password.txt`  | wordpress           | `/run/secrets/wp_user_password`    |
 
-`make` refuses to start if `srcs/.env` or any of these files is missing or
-empty.
+Without `srcs/.env` or any of these files, `make` stops with a Docker
+Compose error naming the missing file.
 
 ## Build and launch
 
 ```bash
-make            # = make up: check config, mkdir /home/dpaes-so/data/{mariadb,wordpress}, compose up -d --build
+make            # = make up: mkdir /home/$USER/data/{mariadb,wordpress}, then compose up --build -d
 ```
 
 Under the hood, the Makefile runs:
 
 ```bash
-docker compose --env-file srcs/.env -f srcs/docker-compose.yml up -d --build
+docker compose -f srcs/docker-compose.yml up --build -d
 ```
 
 On first start:
@@ -107,39 +107,41 @@ daemon.
 ## Manage containers and volumes
 
 ```bash
-make ps                                   # docker compose ps -a
-make logs                                 # follow all logs
+docker compose -f srcs/docker-compose.yml ps        # containers
+docker compose -f srcs/docker-compose.yml logs -f   # follow all logs
 docker logs -f wordpress                  # one service
 docker exec -it mariadb sh                # shell in a container
 docker exec -it wordpress wp user list --allow-root
-docker compose --env-file srcs/.env -f srcs/docker-compose.yml build nginx   # rebuild one image
+docker compose -f srcs/docker-compose.yml build nginx   # rebuild one image
 
 docker network ls                         # inception_inception (bridge)
 docker volume ls                          # inception_mariadb_data, inception_wordpress_data
-docker volume inspect inception_mariadb_data   # Options.device = /home/dpaes-so/data/mariadb
+docker volume inspect inception_mariadb_data   # Options.device = /home/$USER/data/mariadb
 ```
 
 | Target        | Does                                                                 |
 |---------------|----------------------------------------------------------------------|
 | `make down`   | Remove containers and the network; volumes and data stay             |
-| `make re`     | `down` + `up`                                                        |
-| `make fclean` | `compose down -v --rmi all`, then deletes `/home/dpaes-so/data/*`    |
+| `make clean`  | Same as `make down`                                                  |
+| `make fclean` | `clean`, then `compose down -v --rmi all` and `sudo rm -rf /home/$USER/data` |
+| `make re`     | `fclean` + `all`: rebuild everything with an empty site              |
 
-`fclean` deletes the data with a throwaway `debian:bookworm` container,
-because the files belong to container users (`mysql`, `www-data`) and a plain
-`rm` would need `sudo`.
+`fclean` needs `sudo` because the data files belong to container users
+(`mysql`, `www-data`), not to you.
 
 ## Where data lives and how it persists
 
 | Volume                     | Mounted at                    | Data on the host               |
 |----------------------------|-------------------------------|--------------------------------|
-| `inception_mariadb_data`   | `/var/lib/mysql` (mariadb)    | `/home/dpaes-so/data/mariadb`  |
-| `inception_wordpress_data` | `/var/www/html` (wordpress; read-only in nginx) | `/home/dpaes-so/data/wordpress` |
+| `inception_mariadb_data`   | `/var/lib/mysql` (mariadb)    | `/home/$USER/data/mariadb`  |
+| `inception_wordpress_data` | `/var/www/html` (wordpress; read-only in nginx) | `/home/$USER/data/wordpress` |
 
 Both are named volumes using the `local` driver with
-`type: none, o: bind, device: /home/dpaes-so/data/...`. Removing the
+`type: none, o: bind, device: /home/${USER}/data/...`. Docker Compose takes
+`USER` from your shell, so on the VM the path is `/home/dpaes-so/data`. Run
+`make` as yourself, not with `sudo` (which would make it `/home/root/data`). Removing the
 containers, the images, or even the volumes (`docker volume rm`) leaves the
-files in `/home/dpaes-so/data`. The next `make` finds the setup markers
+files in `/home/$USER/data`. The next `make` finds the setup markers
 there and reuses the existing database and site. After a VM reboot, the
 containers start again with the Docker service (`restart: unless-stopped`),
 or with `make`.
